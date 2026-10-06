@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
-from class8_data_loader import load_netflix
-from class8_data_validator import require_columns
+from class8_src import load_netflix, require_columns
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,6 +17,7 @@ def main():
     try:
         df = load_netflix(input_path)
         df = require_columns(df, ["title", "type", "release_year"])
+        logger.info("Data validation passed. Proceeding with further processing...")
     except ValueError as e:
         logger.error(f"Data validation failed: {e}")
         exit(1)
