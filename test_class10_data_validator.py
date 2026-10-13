@@ -1,5 +1,5 @@
 import pandas as pd
-import pytest 
+import pytest  # type: ignore
 
 from class10_data_validator import validate_columns
 
