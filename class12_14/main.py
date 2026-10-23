@@ -1,10 +1,17 @@
 #main.py
 
-from fastapi import FastAPI, Query
+from http.client import HTTPException
+import pathlib
+
+from fastapi import FastAPI, Query, File, UploadFile, HTTPException
 import logging
+import io
+import pandas as pd
+from src import MovieInput, MovieResponse, CSVInfo, DataStorage
 
 
 app = FastAPI(title="Movie API")
+storage = DataStorage() # Create a single instance of DataStorage to be used across requests.
 
 
 @app.get("/health")
@@ -78,3 +85,49 @@ def add_movie(movie: MovieInput):
     logger.info(f"Adding movie with ID: {movie_id}")
     return record
 
+@app.post("/inspect-csv", response_model=CSVInfo)
+async def inspect_csv(file: UploadFile = File(...)):
+
+        if pathlib.Path(file.filename).suffix == ".csv":
+            contents = await file.read()
+
+            try:
+                df = pd.read_csv(io.BytesIO(contents))
+            except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError, AttributeError) as e:
+                logger.warning(f"Error parsing CSV file: {file.filename}, error: {str(e)}")
+                raise HTTPException(status_code=400, detail="Error parsing CSV file")
+            
+            dataset_id = storage.save_data(df, file.filename)
+            logger.info(f"CSV file stored with dataset_id: {dataset_id} and filename: {file.filename}")
+            
+            return CSVInfo(
+                filename=file.filename,
+                rows=df.shape[0],
+                columns=df.shape[1],
+                column_names=list(df.columns),
+                dataset_id=dataset_id
+            )
+        else:
+            logger.warning(f"File is Not a CSV: {file.filename}")
+            raise HTTPException(status_code=400, detail="File is Not a CSV")
+
+@app.get("/datasets/{dataset_id}/shape")
+def get_dataset_shape(dataset_id: int):
+    # TODO 5: get the DataFrame using storage.get_data().
+    # If it is missing, log a WARNING and raise HTTPException with status 404.
+    # Otherwise, log successful retrieval at INFO.
+    # Return a dictionary with dataset_id, rows, and columns.
+    stored_df = storage.get_data(dataset_id)
+    
+    if stored_df is None:
+        logger.warning(f"Dataset not found: {dataset_id}")
+        raise HTTPException(status_code=404, detail="Dataset not found")
+   
+    return {
+            "dataset_id": dataset_id,
+            "rows": stored_df.shape[0],
+            "columns": stored_df.shape[1]
+            }
+    
+
+    
